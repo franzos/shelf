@@ -16,7 +16,6 @@ target documents, invoices, downloads, or anything with file-level metadata.
 ## Features
 
 - **Profile-driven**. Each workflow is a single TOML file in `~/.config/shelf/`.
-  One install, many catalogues.
 - **Metadata-first sorting**. EXIF for photos, QuickTime/MP4 for videos,
   PDF `/Info` for documents. Falls back through filename patterns to `mtime`.
 - **Templates for paths and filenames**. Curly-brace tokens like
@@ -24,15 +23,14 @@ target documents, invoices, downloads, or anything with file-level metadata.
 - **Per-day stable sequence numbers** that survive reruns.
 - **Content-based dedupe** via sha256. Resized or recompressed copies are
   treated as distinct files.
-- **Atomic file ops**. Temp + fsync + rename pattern — a crash never leaves
-  a half-written file at the destination.
+- **Atomic file ops**. Temp + fsync + rename — a crash never leaves a
+  half-written file at the destination.
 - **Health checks**: truncated files, missing capture date, hash drift,
   orphan files, unrouted files.
 - **Run history & revert**. Every `shelf run` is logged; `shelf revert <id>`
   undoes a prior run, op-mode-aware.
 - **Ad-hoc imports** via `--from /path` — point shelf at any directory and
   use a profile's rules for one run.
-- **Preserves source mtime** by default; configurable per output.
 - **Re-runnable**. SQLite state DB tracks what's been placed; subsequent runs
   only act on new files.
 
@@ -46,19 +44,20 @@ target documents, invoices, downloads, or anything with file-level metadata.
 
 ## Install
 
-The project uses a Guix manifest for its toolchain.
+| Method | Command |
+|--------|---------|
+| Homebrew | `brew tap franzos/tap && brew install shelf` |
+| Debian/Ubuntu | Download [`.deb`](https://github.com/franzos/shelf/releases) — `sudo dpkg -i shelf_*_amd64.deb` |
+| Fedora/RHEL | Download [`.rpm`](https://github.com/franzos/shelf/releases) — `sudo rpm -i shelf-*.x86_64.rpm` |
+| Guix | `guix shell -m manifest.scm -- cargo build --release` |
+| Cargo | `cargo build --release` |
 
-```bash
-guix shell -m manifest.scm -- cargo build --release
-# binary at ./target/release/shelf
-```
-
-Drop it on your PATH (`~/.local/bin/shelf` is the usual choice).
+Pre-built binaries for Linux (x86_64), macOS (Apple Silicon, Intel) on [GitHub Releases](https://github.com/franzos/shelf/releases).
 
 ## Quickstart
 
 1. **Write a profile.** Easiest way: use the bundled Claude Code skill —
-   `/shelf-profile` walks you through it. Or copy one of the samples in
+   `/shelf-profile` walks you through it. Or copy a sample from
    `.claude/skills/shelf-profile/SKILL.md` and edit.
 
 2. **See what shelf would do** without touching anything:
@@ -89,7 +88,8 @@ shelf status                                           # all profiles, counts, l
 shelf list                                             # profiles in the config dir
 ```
 
-Global flags: `--config PATH`, `-v` / `-vv` (verbosity).
+Global flags: `--config PATH`, `-v` / `-vv` (verbosity). Every subcommand has
+a `--help` with full details and examples.
 
 ## Ad-hoc import
 
@@ -101,57 +101,38 @@ shelf run photos --from /mnt/sdcard
 shelf plan photos --from /a/path --from /another  # repeatable
 ```
 
-Filters, dedupe, state DB, sequence numbering all apply normally. Only the
-scan roots change.
+Filters, dedupe, state DB, and sequence numbering all apply normally. Only
+the scan roots change.
 
 ## Run history & revert
 
-Every `shelf run` (and `shelf plan`) writes a row to the `runs` table with
-its start/finish timestamps, op counts, and `--from` overrides. `shelf runs`
-lists them newest-first; `shelf runs <id>` shows the placements that run
-produced.
+Every `shelf run` writes a row to the `runs` table. `shelf runs` lists them
+newest-first; `shelf runs <id>` shows the placements that run produced.
 
-```bash
-shelf runs photos                  # list runs
-shelf runs photos 42               # show run 42's placements
-```
-
-The list view marks each row with a status:
+Each row carries a status:
 
 - `(none)` — finished cleanly.
 - `(dry-run)` — `--dry-run`; nothing was placed.
-- `(incomplete)` — the process died mid-run; some placements may exist on
-  disk without a finished row. Treat as "run again or revert manually".
-- `reverted by <id>` — `shelf revert <id>` already undid this run.
+- `(incomplete)` — the process died mid-run; placements may exist on disk
+  without a finished row. Treat as "run again or revert manually".
+- `reverted by <id>` — already undone by a later revert.
 
-`shelf revert <id>` undoes the placements one run created. The op mode is
-remembered per placement, so a `copy` revert deletes the destination while a
-`move` revert puts the file back at its original source path:
+`shelf revert <id>` undoes a run. The op mode is remembered per placement:
+copy/hardlink/symlink reverts delete the destination; move reverts put the
+file back at its original source path.
 
 ```bash
 shelf revert 42                    # undo run 42 (default profile)
 shelf revert photos 42             # undo run 42 of profile `photos`
-shelf revert 42 --dry-run          # preview the plan
-shelf revert 42 --force            # override drift / source-exists checks
+shelf revert 42 --dry-run          # preview
+shelf revert 42 --force            # override safety checks
 ```
 
-Safety checks refuse the revert by default and need `--force` to bypass:
-
-- The destination's sha256 doesn't match what was placed (drift — someone
-  edited the file).
-- A move-revert would clobber an already-existing source path.
-
-Destinations that are already missing on disk get a `warning` line and the
-placement row is dropped anyway (the file is gone either way).
-
-A few revert refusals are unconditional — `--force` won't bypass them:
-
-- The target run doesn't exist.
-- The target run was a dry-run (nothing to undo).
-- The target run is itself a revert (no nested reverts).
-
-Partial failures collect into a report and the rest of the revert keeps
-going, mirroring how `shelf run` handles per-file failures.
+Safety checks refuse without `--force` when the destination has drifted
+(someone edited the placed file) or when a move-revert would clobber an
+existing source path. A few refusals are unconditional — `--force` won't
+bypass them: the target run doesn't exist, was itself a dry-run, or was
+itself a revert.
 
 ## Exit codes
 
@@ -166,15 +147,15 @@ going, mirroring how `shelf run` handles per-file failures.
 ## Where things live
 
 - **Profiles**: `~/.config/shelf/<name>.toml` (override with
-  `$SHELF_CONFIG_DIR` or `--config PATH`).
-- **State**: `~/.local/share/shelf/<profile>.db` per profile.
-- **Design docs**: `TODO.md` and `PLAN.md` in the repo.
+  `$SHELF_CONFIG_DIR`, `$XDG_CONFIG_HOME`, or `--config PATH`).
+- **State**: `$XDG_DATA_HOME/shelf/<profile>.db`, falling back to
+  `~/.local/share/shelf/<profile>.db`.
+- **Profile schema reference**: `.claude/skills/shelf-profile/SKILL.md`.
 
 ## Profile reference
 
-The full schema lives in `TODO.md`. The skill at
-`.claude/skills/shelf-profile/SKILL.md` has a complete reference with three
-sample profiles (photos, invoices, downloads). Short version:
+The skill at `.claude/skills/shelf-profile/SKILL.md` has the full schema
+plus three sample profiles (photos, invoices, downloads). Short version:
 
 ```toml
 inputs = ["/abs/path/to/source"]
@@ -227,14 +208,14 @@ cull, edit, rename, or move — shelf gets out of the way. The state DB tracks
 
 **What if I edit a destination file (Photoshop, sidecar, save-over)?**
 shelf leaves it alone. The source is unchanged, so dedupe skips on rerun and
-your edit survives. `shelf verify --full` will note the byte-level mismatch as
-`health: drift`; that's advisory and doesn't trigger any action.
+your edit survives. `shelf verify --full` notes the byte mismatch as
+`health: drift`; advisory, no action.
 
 **What if I delete a destination file?**
-The placement row in the state DB still says "this sha256 is placed here," so
-dedupe treats the source as handled and **does not** re-place it. `shelf
-health` surfaces the absence as `missing-destination`. If you want it back,
-drop the placement row and rerun:
+The placement row still says "this sha256 is placed here," so dedupe treats
+the source as handled and **does not** re-place it. `shelf health` surfaces
+the absence as `missing-destination`. To get it back, drop the placement row
+and rerun:
 
 ```bash
 sqlite3 ~/.local/share/shelf/photos.db \
@@ -253,8 +234,8 @@ Rerunning just won't see that source again.
 
 **Why doesn't shelf re-place files I deleted from the destination?**
 On purpose. A tool that "noticed" your culls and re-added them would be
-infuriating for a photo library. If you genuinely want shelf to re-handle a
-file, drop its placement row (above).
+infuriating for a photo library. To force re-handling, drop the placement
+row (above).
 
 **How do I start over with a profile?**
 Delete the state DB and the destination tree, then rerun:
@@ -274,14 +255,10 @@ sqlite3 ~/.local/share/shelf/photos.db "DELETE FROM health;"
 ```
 
 **I just ran something I didn't mean to — can I undo it?**
-Yes. Look up the run id and revert it:
+Yes:
 
 ```bash
-shelf runs photos                # find the id of the run to undo
-shelf revert photos 42 --dry-run # see what it would do
+shelf runs photos                # find the run id
+shelf revert photos 42 --dry-run # see what would happen
 shelf revert photos 42           # actually undo it
 ```
-
-Copy / hardlink / symlink runs delete the destinations; move runs restore
-the originals. Edited destinations are flagged as `drift` and refused
-without `--force`.
