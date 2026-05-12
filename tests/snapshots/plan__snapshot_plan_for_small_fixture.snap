@@ -1,0 +1,13 @@
+---
+source: tests/plan.rs
+assertion_line: 723
+expression: summary
+---
+[
+    "Place output=archive seq=1 dst=a/2024/03/2024-03-15_00001.jpg",
+    "Place output=archive seq=1 dst=a/2024/03/2024-03-16_00001.jpg",
+    "Place output=archive seq=2 dst=a/2024/03/2024-03-15_00002.jpg",
+    "Place output=curated seq=1 dst=b/2024/2024-03-15_00001.jpg",
+    "Place output=curated seq=1 dst=b/2024/2024-03-16_00001.jpg",
+    "Place output=curated seq=2 dst=b/2024/2024-03-15_00002.jpg",
+]

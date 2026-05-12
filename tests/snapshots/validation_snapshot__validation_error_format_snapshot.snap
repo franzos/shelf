@@ -1,0 +1,10 @@
+---
+source: tests/validation_snapshot.rs
+expression: msg
+---
+profile `<tmp>/broken.toml` failed validation:
+  - output names must be unique; `lib` appears more than once
+  - extension `jpg` is claimed by multiple kinds (`photo` and `raw`); each canonical extension may only appear in one kind
+  - invalid glob in filters.include: `*[` (error parsing glob '*[': unclosed character class; missing ']')
+  - invalid template in output.lib.directory: `{yyyy` (unclosed `{` at byte 0)
+  - invalid template in output.lib.filename: `{}` (empty token `{}` at byte 0)

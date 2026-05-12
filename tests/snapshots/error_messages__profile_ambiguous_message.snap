@@ -1,0 +1,5 @@
+---
+source: tests/error_messages.rs
+expression: err.to_string()
+---
+no profile name given and 3 profiles exist in `/home/franz/.config/shelf` (candidates: photos, videos, invoices); pass a name or use --config

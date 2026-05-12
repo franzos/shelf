@@ -1,0 +1,10 @@
+---
+source: tests/scan.rs
+assertion_line: 208
+expression: got
+---
+[
+    "a.jpg",
+    "sub/d.jpg",
+    "sub/e.heic",
+]
