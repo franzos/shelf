@@ -196,7 +196,7 @@ fn fanout_emits_one_place_per_output() {
     let mut state = State::open_in_memory().unwrap();
     let candidates = vec![Ok(scanned(&in_dir, "img.jpg"))];
 
-    let plan = plan(&mut state, &profile, candidates.into_iter()).unwrap();
+    let plan = plan(&mut state, &profile, candidates.into_iter(), None).unwrap();
 
     assert_eq!(count_places(&plan), 2, "one place per accepting output");
     let outputs: Vec<&str> = plan
@@ -272,7 +272,7 @@ match = ["img_*"]
         Ok(scanned(&in_dir, "img_001.jpg")),
     ];
 
-    let plan = plan(&mut state, &profile, candidates.into_iter()).unwrap();
+    let plan = plan(&mut state, &profile, candidates.into_iter(), None).unwrap();
 
     let places: Vec<(&str, &str)> = plan
         .actions
@@ -327,7 +327,7 @@ kinds = ["video"]
     let mut state = State::open_in_memory().unwrap();
     let candidates = vec![Ok(scanned(&in_dir, "lonely.jpg"))];
 
-    let plan = plan(&mut state, &profile, candidates.into_iter()).unwrap();
+    let plan = plan(&mut state, &profile, candidates.into_iter(), None).unwrap();
 
     assert_eq!(plan.actions.len(), 0);
     assert!(
@@ -354,7 +354,7 @@ fn dedupe_skip_emits_skipduplicate_for_second_identical_file() {
     let mut state = State::open_in_memory().unwrap();
     let candidates = vec![Ok(scanned(&in_dir, "a.jpg")), Ok(scanned(&in_dir, "b.jpg"))];
 
-    let plan = plan(&mut state, &profile, candidates.into_iter()).unwrap();
+    let plan = plan(&mut state, &profile, candidates.into_iter(), None).unwrap();
 
     let placed: Vec<_> = plan
         .actions
@@ -386,7 +386,7 @@ fn dedupe_keep_both_places_both_with_distinguishing_suffix() {
     let mut state = State::open_in_memory().unwrap();
     let candidates = vec![Ok(scanned(&in_dir, "a.jpg")), Ok(scanned(&in_dir, "b.jpg"))];
 
-    let plan = plan(&mut state, &profile, candidates.into_iter()).unwrap();
+    let plan = plan(&mut state, &profile, candidates.into_iter(), None).unwrap();
 
     let places: Vec<&PathBuf> = plan
         .actions
@@ -421,7 +421,7 @@ fn dedupe_replace_emits_replace_action() {
     let mut state = State::open_in_memory().unwrap();
     let candidates = vec![Ok(scanned(&in_dir, "a.jpg")), Ok(scanned(&in_dir, "b.jpg"))];
 
-    let plan = plan(&mut state, &profile, candidates.into_iter()).unwrap();
+    let plan = plan(&mut state, &profile, candidates.into_iter(), None).unwrap();
 
     let replaces: Vec<_> = plan
         .actions
@@ -452,7 +452,7 @@ fn conflict_skip_emits_skipconflict_when_dst_exists() {
     let mut state = State::open_in_memory().unwrap();
     let candidates = vec![Ok(scanned(&in_dir, "a.jpg"))];
 
-    let plan = plan(&mut state, &profile, candidates.into_iter()).unwrap();
+    let plan = plan(&mut state, &profile, candidates.into_iter(), None).unwrap();
 
     let skipped: Vec<_> = plan
         .actions
@@ -477,7 +477,7 @@ fn conflict_rename_appends_numeric_suffix() {
     let mut state = State::open_in_memory().unwrap();
     let candidates = vec![Ok(scanned(&in_dir, "a.jpg"))];
 
-    let plan = plan(&mut state, &profile, candidates.into_iter()).unwrap();
+    let plan = plan(&mut state, &profile, candidates.into_iter(), None).unwrap();
 
     let dst = match &plan.actions[0] {
         PlannedAction::Place { dst, .. } => dst.clone(),
@@ -504,7 +504,7 @@ fn conflict_hash_suffix_appends_hash() {
     let mut state = State::open_in_memory().unwrap();
     let candidates = vec![Ok(scanned(&in_dir, "a.jpg"))];
 
-    let plan = plan(&mut state, &profile, candidates.into_iter()).unwrap();
+    let plan = plan(&mut state, &profile, candidates.into_iter(), None).unwrap();
 
     let dst = match &plan.actions[0] {
         PlannedAction::Place { dst, .. } => dst.clone(),
@@ -535,7 +535,7 @@ fn conflict_replace_emits_replace_action() {
     let mut state = State::open_in_memory().unwrap();
     let candidates = vec![Ok(scanned(&in_dir, "a.jpg"))];
 
-    let plan = plan(&mut state, &profile, candidates.into_iter()).unwrap();
+    let plan = plan(&mut state, &profile, candidates.into_iter(), None).unwrap();
 
     assert!(matches!(plan.actions[0], PlannedAction::Replace { .. }));
 }
@@ -565,9 +565,9 @@ fn plan_is_deterministic_across_walker_orders() {
     ];
 
     let mut s1 = State::open_in_memory().unwrap();
-    let p1 = plan(&mut s1, &profile, order_one.into_iter()).unwrap();
+    let p1 = plan(&mut s1, &profile, order_one.into_iter(), None).unwrap();
     let mut s2 = State::open_in_memory().unwrap();
-    let p2 = plan(&mut s2, &profile, order_two.into_iter()).unwrap();
+    let p2 = plan(&mut s2, &profile, order_two.into_iter(), None).unwrap();
 
     fn normalize(plan: &Plan) -> Vec<(String, PathBuf, u64)> {
         let mut v: Vec<_> = plan
@@ -604,8 +604,8 @@ fn rerun_against_same_state_yields_same_plan() {
     let cands_a = vec![Ok(scanned(&in_dir, "a.jpg")), Ok(scanned(&in_dir, "b.jpg"))];
     let cands_b = vec![Ok(scanned(&in_dir, "a.jpg")), Ok(scanned(&in_dir, "b.jpg"))];
 
-    let p1 = plan(&mut state, &profile, cands_a.into_iter()).unwrap();
-    let p2 = plan(&mut state, &profile, cands_b.into_iter()).unwrap();
+    let p1 = plan(&mut state, &profile, cands_a.into_iter(), None).unwrap();
+    let p2 = plan(&mut state, &profile, cands_b.into_iter(), None).unwrap();
 
     let dsts = |plan: &Plan| -> Vec<PathBuf> {
         let mut v: Vec<PathBuf> = plan
@@ -633,7 +633,7 @@ fn planner_does_not_write_placements_rows() {
     let profile = single_output_profile(&out, "skip", "rename", "output");
     let mut state = State::open_in_memory().unwrap();
     let cands = vec![Ok(scanned(&in_dir, "a.jpg"))];
-    let _ = plan(&mut state, &profile, cands.into_iter()).unwrap();
+    let _ = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
 
     let count: i64 = state
         .conn()
@@ -654,7 +654,7 @@ fn planner_health_entry_for_walker_error() {
         path: PathBuf::from("/y/z"),
     };
     let cands = vec![Err::<ScannedFile, _>(err)];
-    let p = plan(&mut state, &profile, cands.into_iter()).unwrap();
+    let p = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
     assert!(p.actions.is_empty());
     assert!(
         p.health.iter().any(|h| h.kind == HealthKind::WalkError),
@@ -772,7 +772,7 @@ fn plan_is_deterministic_across_many_input_orderings() {
             .map(|i| Ok(scanned(&in_dir, &names[*i])))
             .collect();
         let mut state = State::open_in_memory().unwrap();
-        let p = plan(&mut state, &profile, cands.into_iter()).unwrap();
+        let p = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
         let normalized = normalize(&p);
         if let Some(b) = &baseline {
             assert_eq!(
@@ -808,8 +808,8 @@ fn run_batch_boundary_case(n: usize) {
     let cands: Vec<_> = (0..n)
         .map(|i| Ok(scanned(&in_dir, &format!("img_{i:05}.jpg"))))
         .collect();
-    let p = plan(&mut state, &profile, cands.into_iter()).unwrap();
-    let report = shelf::apply::apply(&mut state, &profile, &p, None).unwrap();
+    let p = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
+    let report = shelf::apply::apply(&mut state, &profile, &p, None, None).unwrap();
     assert_eq!(report.placed, n as u64, "n={n}: placed count");
     assert_eq!(report.failed.len(), 0, "n={n}: zero failures");
 
@@ -897,8 +897,8 @@ fn many_planner_cycles_share_state_without_bleed() {
             .collect()
     };
 
-    let p0 = plan(&mut state, &profile, all_cands().into_iter()).unwrap();
-    shelf::apply::apply(&mut state, &profile, &p0, None).unwrap();
+    let p0 = plan(&mut state, &profile, all_cands().into_iter(), None).unwrap();
+    shelf::apply::apply(&mut state, &profile, &p0, None, None).unwrap();
 
     fn count_skips(p: &Plan) -> usize {
         p.actions
@@ -927,7 +927,7 @@ fn many_planner_cycles_share_state_without_bleed() {
             v.reverse();
             v
         };
-        let p = plan(&mut state, &profile, order.into_iter()).unwrap();
+        let p = plan(&mut state, &profile, order.into_iter(), None).unwrap();
         assert_eq!(
             count_skips(&p),
             expected_total,
@@ -966,9 +966,10 @@ fn replan_after_apply_is_stable() {
             Ok(scanned(&in_dir, "c.jpg")),
         ]
         .into_iter(),
+        None,
     )
     .unwrap();
-    shelf::apply::apply(&mut state, &profile, &p1, None).unwrap();
+    shelf::apply::apply(&mut state, &profile, &p1, None, None).unwrap();
 
     let p2 = plan(
         &mut state,
@@ -979,6 +980,7 @@ fn replan_after_apply_is_stable() {
             Ok(scanned(&in_dir, "c.jpg")),
         ]
         .into_iter(),
+        None,
     )
     .unwrap();
 
@@ -1035,7 +1037,7 @@ fn identical_taken_at_tie_breaks_on_source_path_lexicographic() {
     for order in &permutations {
         let mut state = State::open_in_memory().unwrap();
         let cands: Vec<_> = order.iter().map(|n| Ok(scanned(&in_dir, n))).collect();
-        let p = plan(&mut state, &profile, cands.into_iter()).unwrap();
+        let p = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
 
         let mut by_name: Vec<(String, u64)> = p
             .actions
@@ -1074,9 +1076,10 @@ fn replanned_file_reuses_prior_seq_via_existing_seq_lookup() {
         &mut state,
         &profile,
         vec![Ok(scanned(&in_dir, "a.jpg")), Ok(scanned(&in_dir, "b.jpg"))].into_iter(),
+        None,
     )
     .unwrap();
-    shelf::apply::apply(&mut state, &profile, &plan_1, None).unwrap();
+    shelf::apply::apply(&mut state, &profile, &plan_1, None, None).unwrap();
 
     let (seq_a_first, seq_b_first) = {
         let mut by_name: Vec<(String, u64)> = plan_1
@@ -1101,6 +1104,7 @@ fn replanned_file_reuses_prior_seq_via_existing_seq_lookup() {
         &mut state,
         &profile,
         vec![Ok(scanned(&in_dir, "a.jpg"))].into_iter(),
+        None,
     )
     .unwrap();
 
@@ -1146,7 +1150,7 @@ fn snapshot_plan_for_small_fixture() {
         Ok(scanned(&in_dir, "second.jpg")),
         Ok(scanned(&in_dir, "third.jpg")),
     ];
-    let plan = plan(&mut state, &profile, cands.into_iter()).unwrap();
+    let plan = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
 
     let mut summary: Vec<String> = plan
         .actions

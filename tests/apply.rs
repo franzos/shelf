@@ -177,8 +177,8 @@ fn mtime_unix(p: &Path) -> i64 {
 #[test]
 fn copy_places_file_and_leaves_source_in_place() {
     let (_tmp, mut state, profile, cands) = stage_single_file("copy");
-    let plan = plan(&mut state, &profile, cands.into_iter()).unwrap();
-    let report = apply(&mut state, &profile, &plan, None).unwrap();
+    let plan = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
+    let report = apply(&mut state, &profile, &plan, None, None).unwrap();
 
     assert_eq!(report.placed, 1);
     assert_eq!(report.failed.len(), 0);
@@ -211,7 +211,7 @@ fn copy_places_file_and_leaves_source_in_place() {
 #[test]
 fn move_renames_when_same_filesystem_and_removes_source() {
     let (_tmp, mut state, profile, cands) = stage_single_file("move");
-    let plan = plan(&mut state, &profile, cands.into_iter()).unwrap();
+    let plan = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
     let src = match &plan.actions[0] {
         PlannedAction::Place { src, .. } => src.clone(),
         other => panic!("expected Place, got {other:?}"),
@@ -221,7 +221,7 @@ fn move_renames_when_same_filesystem_and_removes_source() {
         _ => unreachable!(),
     };
 
-    let report = apply(&mut state, &profile, &plan, None).unwrap();
+    let report = apply(&mut state, &profile, &plan, None, None).unwrap();
     assert_eq!(report.placed, 1);
     assert!(dst.exists());
     assert!(!src.exists(), "move must remove source");
@@ -231,8 +231,8 @@ fn move_renames_when_same_filesystem_and_removes_source() {
 #[test]
 fn hardlink_creates_link_with_same_inode() {
     let (_tmp, mut state, profile, cands) = stage_single_file("hardlink");
-    let plan = plan(&mut state, &profile, cands.into_iter()).unwrap();
-    let report = apply(&mut state, &profile, &plan, None).unwrap();
+    let plan = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
+    let report = apply(&mut state, &profile, &plan, None, None).unwrap();
     assert_eq!(report.placed, 1);
 
     let (src, dst) = match &plan.actions[0] {
@@ -251,8 +251,8 @@ fn hardlink_creates_link_with_same_inode() {
 #[test]
 fn symlink_points_at_absolute_source() {
     let (_tmp, mut state, profile, cands) = stage_single_file("symlink");
-    let plan = plan(&mut state, &profile, cands.into_iter()).unwrap();
-    let report = apply(&mut state, &profile, &plan, None).unwrap();
+    let plan = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
+    let report = apply(&mut state, &profile, &plan, None, None).unwrap();
     assert_eq!(report.placed, 1);
 
     let (src, dst) = match &plan.actions[0] {
@@ -282,8 +282,8 @@ fn skipconflict_leaves_existing_file_untouched() {
     let mut state = State::open_in_memory().unwrap();
     let cands = vec![Ok(scanned(&in_dir, "a.jpg"))];
 
-    let plan = plan(&mut state, &profile, cands.into_iter()).unwrap();
-    let report = apply(&mut state, &profile, &plan, None).unwrap();
+    let plan = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
+    let report = apply(&mut state, &profile, &plan, None, None).unwrap();
 
     assert_eq!(report.placed, 0);
     assert_eq!(report.skipped_conflict, 1);
@@ -310,8 +310,8 @@ fn rename_places_second_file_at_suffixed_path() {
     let mut state = State::open_in_memory().unwrap();
     let cands = vec![Ok(scanned(&in_dir, "a.jpg"))];
 
-    let plan = plan(&mut state, &profile, cands.into_iter()).unwrap();
-    let report = apply(&mut state, &profile, &plan, None).unwrap();
+    let plan = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
+    let report = apply(&mut state, &profile, &plan, None, None).unwrap();
     assert_eq!(report.placed, 1);
 
     let dst = match &plan.actions[0] {
@@ -343,8 +343,8 @@ fn replace_overwrites_existing_and_records_single_placement() {
     let mut state = State::open_in_memory().unwrap();
     let cands = vec![Ok(scanned(&in_dir, "a.jpg"))];
 
-    let plan = plan(&mut state, &profile, cands.into_iter()).unwrap();
-    let report = apply(&mut state, &profile, &plan, None).unwrap();
+    let plan = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
+    let report = apply(&mut state, &profile, &plan, None, None).unwrap();
     assert_eq!(report.replaced, 1);
     assert_eq!(report.placed, 0);
 
@@ -379,9 +379,10 @@ fn replace_evicts_old_placement_row_for_same_dst() {
         &mut state,
         &profile,
         vec![Ok(scanned(&in_dir, "a.jpg"))].into_iter(),
+        None,
     )
     .unwrap();
-    let ra = apply(&mut state, &profile, &plan_a, None).unwrap();
+    let ra = apply(&mut state, &profile, &plan_a, None, None).unwrap();
     assert_eq!(ra.placed, 1);
 
     let dst_a = match &plan_a.actions[0] {
@@ -401,6 +402,7 @@ fn replace_evicts_old_placement_row_for_same_dst() {
         &mut state,
         &profile,
         vec![Ok(scanned(&in_dir, "b.jpg"))].into_iter(),
+        None,
     )
     .unwrap();
     assert!(
@@ -408,7 +410,7 @@ fn replace_evicts_old_placement_row_for_same_dst() {
         "expected Replace via dedupe, got {:?}",
         plan_b.actions[0]
     );
-    let rb = apply(&mut state, &profile, &plan_b, None).unwrap();
+    let rb = apply(&mut state, &profile, &plan_b, None, None).unwrap();
     assert_eq!(rb.replaced, 1);
 
     let surviving_file_id: i64 = state
@@ -451,8 +453,8 @@ fn dedupe_skip_emits_skipped_counter() {
     let mut state = State::open_in_memory().unwrap();
     let cands = vec![Ok(scanned(&in_dir, "a.jpg")), Ok(scanned(&in_dir, "b.jpg"))];
 
-    let plan = plan(&mut state, &profile, cands.into_iter()).unwrap();
-    let report = apply(&mut state, &profile, &plan, None).unwrap();
+    let plan = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
+    let report = apply(&mut state, &profile, &plan, None, None).unwrap();
 
     assert_eq!(report.placed, 1);
     assert_eq!(report.skipped_duplicate, 1);
@@ -479,8 +481,8 @@ fn copy_preserves_source_mtime_by_default() {
     let profile = single_output_profile_with_preserve(&out, "copy", true);
     let mut state = State::open_in_memory().unwrap();
     let cands = vec![Ok(scanned(&in_dir, "a.jpg"))];
-    let plan = plan(&mut state, &profile, cands.into_iter()).unwrap();
-    let report = apply(&mut state, &profile, &plan, None).unwrap();
+    let plan = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
+    let report = apply(&mut state, &profile, &plan, None, None).unwrap();
     assert_eq!(report.placed, 1);
 
     let dst = match &plan.actions[0] {
@@ -510,8 +512,8 @@ fn copy_with_preserve_mtime_false_does_not_carry_source_mtime() {
     let profile = single_output_profile_with_preserve(&out, "copy", false);
     let mut state = State::open_in_memory().unwrap();
     let cands = vec![Ok(scanned(&in_dir, "a.jpg"))];
-    let plan = plan(&mut state, &profile, cands.into_iter()).unwrap();
-    let report = apply(&mut state, &profile, &plan, None).unwrap();
+    let plan = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
+    let report = apply(&mut state, &profile, &plan, None, None).unwrap();
     assert_eq!(report.placed, 1);
 
     let dst = match &plan.actions[0] {
@@ -541,8 +543,8 @@ fn move_same_fs_preserves_mtime_for_free() {
     let profile = single_output_profile_with_preserve(&out, "move", true);
     let mut state = State::open_in_memory().unwrap();
     let cands = vec![Ok(scanned(&in_dir, "a.jpg"))];
-    let plan = plan(&mut state, &profile, cands.into_iter()).unwrap();
-    apply(&mut state, &profile, &plan, None).unwrap();
+    let plan = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
+    apply(&mut state, &profile, &plan, None, None).unwrap();
 
     let dst = match &plan.actions[0] {
         PlannedAction::Place { dst, .. } => dst.clone(),
@@ -567,8 +569,8 @@ fn hardlink_inherits_source_mtime_through_inode() {
     let profile = single_output_profile_with_preserve(&out, "hardlink", true);
     let mut state = State::open_in_memory().unwrap();
     let cands = vec![Ok(scanned(&in_dir, "a.jpg"))];
-    let plan = plan(&mut state, &profile, cands.into_iter()).unwrap();
-    apply(&mut state, &profile, &plan, None).unwrap();
+    let plan = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
+    apply(&mut state, &profile, &plan, None, None).unwrap();
 
     let dst = match &plan.actions[0] {
         PlannedAction::Place { dst, .. } => dst.clone(),
@@ -594,7 +596,7 @@ fn copy_to_unwritable_dest_fails_cleanly_with_no_partial_artifacts() {
     let profile = single_output_profile(&out, "copy", "skip", "rename", "output");
     let mut state = State::open_in_memory().unwrap();
     let cands = vec![Ok(scanned(&in_dir, "a.jpg"))];
-    let plan = plan(&mut state, &profile, cands.into_iter()).unwrap();
+    let plan = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
     let dst_parent = match &plan.actions[0] {
         PlannedAction::Place { dst, .. } => dst.parent().unwrap().to_path_buf(),
         _ => unreachable!(),
@@ -605,7 +607,7 @@ fn copy_to_unwritable_dest_fails_cleanly_with_no_partial_artifacts() {
     perms.set_mode(0o500);
     fs::set_permissions(&dst_parent, perms).unwrap();
 
-    let report = apply(&mut state, &profile, &plan, None).unwrap();
+    let report = apply(&mut state, &profile, &plan, None, None).unwrap();
 
     // Re-open for write so tmpdir can clean up.
     let mut perms = fs::metadata(&dst_parent).unwrap().permissions();
@@ -697,8 +699,8 @@ fn xdev_move_falls_back_to_copy_remove() {
     let profile = single_output_profile_with_preserve(&out, "move", true);
     let mut state = State::open_in_memory().unwrap();
     let cands = vec![Ok(scanned(&in_dir, "a.jpg"))];
-    let plan_v = plan(&mut state, &profile, cands.into_iter()).unwrap();
-    let report = apply(&mut state, &profile, &plan_v, None).unwrap();
+    let plan_v = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
+    let report = apply(&mut state, &profile, &plan_v, None, None).unwrap();
 
     assert_eq!(
         report.placed, 1,
@@ -752,14 +754,14 @@ fn plan_and_apply_survive_non_utf8_source_filename() {
         absolute_path: weird_abs.clone(),
         relative_path: PathBuf::from(weird),
     };
-    let plan_v = plan(&mut state, &profile, vec![Ok(cand)].into_iter()).unwrap();
+    let plan_v = plan(&mut state, &profile, vec![Ok(cand)].into_iter(), None).unwrap();
     assert_eq!(
         plan_v.actions.len(),
         1,
         "non-UTF-8 path must still produce a plan"
     );
 
-    let report = apply(&mut state, &profile, &plan_v, None).unwrap();
+    let report = apply(&mut state, &profile, &plan_v, None, None).unwrap();
     assert_eq!(
         report.placed, 1,
         "apply must succeed for a non-UTF-8 source"
@@ -809,7 +811,7 @@ fn multi_action_plan_partial_failure_commits_remainder_and_replays_cleanly() {
         .iter()
         .map(|m| Ok(scanned(&in_dir, &format!("img_{m}.jpg"))))
         .collect();
-    let plan_v = plan(&mut state, &profile, cands.into_iter()).unwrap();
+    let plan_v = plan(&mut state, &profile, cands.into_iter(), None).unwrap();
     assert_eq!(plan_v.actions.len(), months.len());
 
     let blocked_dir = out.join("2024/03");
@@ -819,7 +821,7 @@ fn multi_action_plan_partial_failure_commits_remainder_and_replays_cleanly() {
     perms.set_mode(0o500);
     fs::set_permissions(&blocked_dir, perms).unwrap();
 
-    let report = apply(&mut state, &profile, &plan_v, None).unwrap();
+    let report = apply(&mut state, &profile, &plan_v, None, None).unwrap();
 
     let mut perms = fs::metadata(&blocked_dir).unwrap().permissions();
     perms.set_mode(0o700);
@@ -845,7 +847,7 @@ fn multi_action_plan_partial_failure_commits_remainder_and_replays_cleanly() {
         .iter()
         .map(|m| Ok(scanned(&in_dir, &format!("img_{m}.jpg"))))
         .collect();
-    let plan_2 = plan(&mut state, &profile, cands_rerun.into_iter()).unwrap();
+    let plan_2 = plan(&mut state, &profile, cands_rerun.into_iter(), None).unwrap();
     let mut fresh_places: Vec<PathBuf> = plan_2
         .actions
         .iter()
@@ -866,7 +868,7 @@ fn multi_action_plan_partial_failure_commits_remainder_and_replays_cleanly() {
         fresh_places[0]
     );
 
-    let report_2 = apply(&mut state, &profile, &plan_2, None).unwrap();
+    let report_2 = apply(&mut state, &profile, &plan_2, None, None).unwrap();
     assert_eq!(report_2.placed, 1);
     assert_eq!(report_2.failed.len(), 0);
     assert_eq!(

@@ -9,6 +9,7 @@ use crate::config::{Profile, ProfileEntry, discover_profiles, load_profile, reso
 use crate::error::{Error, Result};
 use crate::health::{HealthReport, check as run_health_checks};
 use crate::plan::{HealthEntry, HealthKind, Plan, PlannedAction, plan};
+use crate::progress::Progress;
 use crate::revert::{RevertOptions, RevertOutcome, RevertRefusal, precheck, revert};
 use crate::scan::{scan, scan_profile};
 use crate::state::{RunCounts, RunId, RunRow, State};
@@ -63,12 +64,14 @@ impl VerifyOutcome {
 ///
 /// Opens a `runs` row at start and finalises on completion. Mid-run crashes
 /// leave the row visible as `(incomplete)`.
+#[allow(clippy::too_many_arguments)]
 pub fn run<W: Write, E: Write>(
     profile_name: Option<&str>,
     config_override: Option<&Path>,
     from_overrides: &[PathBuf],
     dry_run: bool,
     strict: bool,
+    show_all: bool,
     out: &mut W,
     err: &mut E,
 ) -> Result<RunOutcome> {
@@ -84,17 +87,20 @@ pub fn run<W: Write, E: Write>(
     let mut state = State::open(&resolved_name, &profile)?;
     let run_id = state.open_run(&resolved_name, from_overrides, dry_run, strict)?;
 
+    let progress = Progress::stderr();
+
     let plan = if from_overrides.is_empty() {
         let candidates = scan_profile(&profile)?;
-        plan(&mut state, &profile, candidates)?
+        plan(&mut state, &profile, candidates, Some(&progress))?
     } else {
         let roots = canonicalize_overrides(from_overrides)?;
         tracing::debug!(roots = ?roots, "scan: --from override");
         let candidates = scan(&roots, &profile.filters)?;
-        plan(&mut state, &profile, candidates)?
+        plan(&mut state, &profile, candidates, Some(&progress))?
     };
 
-    print_plan(&plan, out)?;
+    progress.done();
+    print_plan(&plan, show_all, out)?;
 
     if dry_run {
         write_summary_dry_run(&plan, err)?;
@@ -111,7 +117,9 @@ pub fn run<W: Write, E: Write>(
         });
     }
 
-    let report = apply(&mut state, &profile, &plan, Some(run_id))?;
+    let progress = Progress::stderr();
+    let report = apply(&mut state, &profile, &plan, Some(run_id), Some(&progress))?;
+    progress.done();
     write_summary_apply(&plan, &report, err)?;
 
     let counts = RunCounts {
@@ -418,8 +426,9 @@ pub fn revert_run<W: Write, E: Write>(
     Ok(outcome)
 }
 
-/// Write the plan in the stable line-per-action format.
-pub fn print_plan<W: Write>(plan: &Plan, out: &mut W) -> Result<()> {
+/// Write the plan in the stable line-per-action format. When `show_all` is
+/// false, suppresses `SkipDuplicate`, `SkipConflict`, and `MissingDate`.
+pub fn print_plan<W: Write>(plan: &Plan, show_all: bool, out: &mut W) -> Result<()> {
     for action in &plan.actions {
         match action {
             PlannedAction::Place {
@@ -456,7 +465,7 @@ pub fn print_plan<W: Write>(plan: &Plan, out: &mut W) -> Result<()> {
                 src,
                 existing_dst,
                 output_name,
-            } => writeln!(
+            } if show_all => writeln!(
                 out,
                 "skip-duplicate\t{}\t{}\texisting={}",
                 output_name,
@@ -468,7 +477,7 @@ pub fn print_plan<W: Write>(plan: &Plan, out: &mut W) -> Result<()> {
                 src,
                 dst,
                 output_name,
-            } => writeln!(
+            } if show_all => writeln!(
                 out,
                 "skip-conflict\t{}\t{}\tdst={}",
                 output_name,
@@ -476,9 +485,13 @@ pub fn print_plan<W: Write>(plan: &Plan, out: &mut W) -> Result<()> {
                 dst.display()
             )
             .map_err(io_stdout)?,
+            PlannedAction::SkipDuplicate { .. } | PlannedAction::SkipConflict { .. } => {}
         }
     }
     for h in &plan.health {
+        if !show_all && h.kind == HealthKind::MissingDate {
+            continue;
+        }
         writeln!(
             out,
             "health: {}\t{}",

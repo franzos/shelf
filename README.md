@@ -78,8 +78,8 @@ Pre-built binaries for Linux (x86_64), macOS (Apple Silicon, Intel) on [GitHub R
 ## Subcommands
 
 ```
-shelf run    [profile] [--from PATH]... [--dry-run] [--strict]
-shelf plan   [profile] [--from PATH]...                # alias for run --dry-run
+shelf run    [profile] [--from PATH]... [--dry-run] [--strict] [--all]
+shelf plan   [profile] [--from PATH]... [--all]        # alias for run --dry-run
 shelf health [profile] [--sample N]                    # diagnostic report
 shelf verify [profile] [--full | --sample N]           # rehash placements, flag drift
 shelf runs   [profile] [<id>] [--limit N]              # run history; <id> shows placements

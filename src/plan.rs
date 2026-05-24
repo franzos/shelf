@@ -20,6 +20,7 @@ use crate::error::{Error, Result};
 use crate::hash::{hex, sha256_file};
 use crate::kind::classify_scanned;
 use crate::metadata::{DateSource, Metadata, extract};
+use crate::progress::Progress;
 use crate::scan::ScannedFile;
 use crate::sequence::Sequencer;
 use crate::state::{CachedFileEntry, FileId, PrepareBatch, State, source_path_key, stat_for_cache};
@@ -113,9 +114,13 @@ pub fn plan(
     state: &mut State,
     profile: &Profile,
     candidates: impl Iterator<Item = Result<ScannedFile>>,
+    progress: Option<&Progress>,
 ) -> Result<Plan> {
     let mut plan = Plan::default();
 
+    if let Some(p) = progress {
+        p.phase("scanning");
+    }
     let lower = candidates.size_hint().0;
     let mut scanned: Vec<ScannedFile> = Vec::with_capacity(lower);
     for c in candidates {
@@ -132,13 +137,14 @@ pub fn plan(
         }
     }
 
+    if let Some(p) = progress {
+        p.phase("hashing");
+    }
     // Bulk-preload the (source_path → cached digest) index so the parallel
     // pre-compute phase resolves cache hits in memory instead of through a
     // per-file SELECT.
     let cache = state.load_hash_cache()?;
 
-    // Pure-compute phase: stat, hash (or pull from cache), classify, extract
-    // metadata. No `&mut State` here — runs across the rayon pool.
     let computed: Vec<std::result::Result<Computed, HealthEntry>> = scanned
         .into_par_iter()
         .map(|file| compute_one(profile, file, &cache))
@@ -161,6 +167,9 @@ pub fn plan(
         upsert_chunk(state, &mut chunk, &mut ready, &mut plan)?;
     }
 
+    if let Some(p) = progress {
+        p.phase("planning");
+    }
     ready.sort_by(|a, b| {
         a.metadata
             .taken_at

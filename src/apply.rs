@@ -19,6 +19,7 @@ use rusqlite::params;
 use crate::config::{OpMode, Profile};
 use crate::error::{ApplyErrorKind, Error, Result};
 use crate::plan::{Plan, PlannedAction};
+use crate::progress::Progress;
 use crate::state::{FileId, RunId, State};
 
 const SYSTEM_TS_FORMAT: &str = "%Y-%m-%dT%H:%M:%S%.3fZ";
@@ -51,7 +52,11 @@ pub fn apply(
     profile: &Profile,
     plan: &Plan,
     run_id: Option<RunId>,
+    progress: Option<&Progress>,
 ) -> Result<ApplyReport> {
+    if let Some(p) = progress {
+        p.phase("applying");
+    }
     let mut report = ApplyReport::default();
     let preserve_by_output = preserve_mtime_index(profile);
     for action in &plan.actions {

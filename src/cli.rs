@@ -84,6 +84,12 @@ pub struct RunArgs {
     /// Ad-hoc input root, overriding the profile's `inputs`. Repeatable.
     #[arg(long = "from", value_name = "PATH", action = ArgAction::Append)]
     pub from: Vec<PathBuf>,
+
+    /// Show every action and health entry. Without it, `skip-duplicate`,
+    /// `skip-conflict`, and `health: missing-date` lines are hidden — the
+    /// summary still reports their counts.
+    #[arg(long)]
+    pub all: bool,
 }
 
 #[derive(Debug, Clone, Args)]
@@ -159,6 +165,11 @@ pub struct RevertArgs {
 /// health: hash-failed\t<path>
 /// ```
 ///
+/// By default, `skip-duplicate`, `skip-conflict`, and `health: missing-date`
+/// are suppressed so reruns over an established library are quiet. Pass
+/// `--all` to see every action and health entry. The summary line on stderr
+/// always reports counts for suppressed categories.
+///
 /// A one-line summary follows on stderr:
 ///
 /// ```text
@@ -210,6 +221,7 @@ EXAMPLES
     shelf run photos                   # named profile
     shelf run photos --dry-run         # like `shelf plan photos`
     shelf run photos --strict          # fail on health entries
+    shelf run photos --all             # include skip-* and missing-date lines
     shelf run photos --from /tmp/dump  # override profile inputs
     shelf run --config ./alt.toml      # ad-hoc profile path
 ")]
@@ -228,6 +240,7 @@ Output is stable, tab-separated, and suitable for diffing across runs (see \
 EXAMPLES
     shelf plan
     shelf plan photos
+    shelf plan photos --all            # include skip-* and missing-date lines
     shelf plan photos --from /tmp/dump
     shelf plan photos | diff -u prev.plan -
 ")]

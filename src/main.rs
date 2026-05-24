@@ -94,15 +94,15 @@ fn cmd_list() -> shelf::error::Result<()> {
 
 fn cmd_run(cli: &Cli, args: &RunArgs, dry_run: bool) -> shelf::error::Result<DispatchOutcome> {
     let stdout = std::io::stdout();
-    let stderr = std::io::stderr();
     let mut out = stdout.lock();
-    let mut err = stderr.lock();
+    let mut err = std::io::stderr();
     let outcome = run(
         args.profile.as_deref(),
         cli.config.as_deref(),
         &args.from,
         dry_run,
         cli.strict,
+        args.all,
         &mut out,
         &mut err,
     )?;

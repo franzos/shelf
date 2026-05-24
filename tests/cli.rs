@@ -427,6 +427,88 @@ fn without_from_profile_inputs_drive_the_scan() {
 }
 
 // ---------------------------------------------------------------------------
+// `--all` (output verbosity)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn plan_hides_missing_date_by_default() {
+    // photos_profile uses mtime-only dates, so every file fires missing-date.
+    let fx = Fixture::new(photos_profile, "photos");
+    fx.stage_jpegs(&["a.jpg"]);
+
+    let out = bin()
+        .env("SHELF_CONFIG_DIR", &fx.config_dir)
+        .args(["plan", "photos"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8(out).unwrap();
+    assert!(text.contains("place\tlibrary\t"), "got: {text}");
+    assert!(
+        !text.contains("missing-date"),
+        "missing-date should be suppressed by default; got: {text}"
+    );
+}
+
+#[test]
+fn plan_all_shows_missing_date() {
+    let fx = Fixture::new(photos_profile, "photos");
+    fx.stage_jpegs(&["a.jpg"]);
+
+    bin()
+        .env("SHELF_CONFIG_DIR", &fx.config_dir)
+        .args(["plan", "photos", "--all"])
+        .assert()
+        .success()
+        .stdout(contains("health: missing-date"));
+}
+
+#[test]
+fn rerun_plan_hides_skip_duplicate_by_default() {
+    let fx = Fixture::new(photos_profile, "photos");
+    fx.stage_jpegs(&["a.jpg", "b.jpg"]);
+    bin()
+        .env("SHELF_CONFIG_DIR", &fx.config_dir)
+        .args(["run", "photos"])
+        .assert()
+        .success();
+
+    let out = bin()
+        .env("SHELF_CONFIG_DIR", &fx.config_dir)
+        .args(["plan", "photos"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8(out).unwrap();
+    assert!(
+        !text.contains("skip-duplicate"),
+        "skip-duplicate should be suppressed by default; got: {text}"
+    );
+}
+
+#[test]
+fn rerun_plan_all_shows_skip_duplicate() {
+    let fx = Fixture::new(photos_profile, "photos");
+    fx.stage_jpegs(&["a.jpg", "b.jpg"]);
+    bin()
+        .env("SHELF_CONFIG_DIR", &fx.config_dir)
+        .args(["run", "photos"])
+        .assert()
+        .success();
+
+    bin()
+        .env("SHELF_CONFIG_DIR", &fx.config_dir)
+        .args(["plan", "photos", "--all"])
+        .assert()
+        .success()
+        .stdout(contains("skip-duplicate\tlibrary\t"));
+}
+
+// ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
 

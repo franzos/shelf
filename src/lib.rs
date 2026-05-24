@@ -8,6 +8,7 @@ pub mod health;
 pub mod kind;
 pub mod metadata;
 pub mod plan;
+pub mod progress;
 pub mod revert;
 pub mod run;
 pub mod scan;
